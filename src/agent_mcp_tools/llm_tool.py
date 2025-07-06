@@ -174,6 +174,8 @@ class AgentExecutor:
             except json.JSONDecodeError:
                 tool_args = {}
 
+            logger.debug(f"Calling tool {tool_name} with args: {tool_args}")
+
             try:
                 result = await self.mcp_manager.call_tool(tool_name, tool_args)
                 content = result

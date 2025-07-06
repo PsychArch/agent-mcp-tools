@@ -220,14 +220,28 @@ class MCPClient:
     async def _cleanup(self) -> None:
         """Clean up resources."""
         if self.exit_stack:
+            logger.debug(f"Starting cleanup for {self.config.name}")
             try:
-                await self.exit_stack.aclose()
+                # Add timeout to prevent hanging during cleanup
+                await asyncio.wait_for(self.exit_stack.aclose(), timeout=5.0)
+                logger.debug(f"Successfully cleaned up {self.config.name}")
+            except asyncio.TimeoutError:
+                logger.warning(f"Cleanup timeout for {self.config.name} - forcing shutdown")
+            except asyncio.CancelledError:
+                # Handle cancel scope errors gracefully - this is expected during cleanup
+                logger.debug(f"Cleanup cancelled for {self.config.name} - this is normal during shutdown")
+            except RuntimeError as e:
+                if "cancel scope" in str(e):
+                    logger.debug(f"Cancel scope error during cleanup for {self.config.name} - this is expected")
+                else:
+                    logger.error(f"Runtime error cleaning up {self.config.name}: {e}")
             except Exception as e:
                 logger.error(f"Error cleaning up {self.config.name}: {e}")
             finally:
                 self.exit_stack = None
                 self.session = None
                 self._tools_cache = None
+                logger.debug(f"Cleanup completed for {self.config.name}")
 
 
 class MCPClientManager:
@@ -265,6 +279,16 @@ class MCPClientManager:
 
     async def cleanup(self) -> None:
         """Disconnect from all servers."""
-        for client in self.clients.values():
-            await client.disconnect()
+        # Clean up clients individually to prevent one failure from affecting others
+        for client_name, client in self.clients.items():
+            try:
+                await asyncio.wait_for(client.disconnect(), timeout=3.0)
+            except asyncio.TimeoutError:
+                logger.warning(f"Timeout disconnecting from {client_name}")
+            except (asyncio.CancelledError, RuntimeError) as e:
+                # These are expected during shutdown
+                logger.debug(f"Expected cleanup error for {client_name}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup client {client_name}: {e}")
+        
         self.clients.clear() 

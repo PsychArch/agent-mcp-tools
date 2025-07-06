@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from enum import Enum
 import json
+import traceback
 
 import typer
 from rich.console import Console
@@ -94,6 +95,12 @@ def query(
         help="Theme for syntax highlighting.",
         case_sensitive=False,
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output.",
+    ),
 ) -> None:
     """Query an LLM with optional MCP tools and custom system prompt.
     
@@ -106,6 +113,14 @@ def query(
         temperature: Temperature for sampling
         theme: Theme for syntax highlighting
     """
+    if verbose:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            stream=sys.stderr,
+        )
+        logger.info("Verbose mode enabled")
+
     verify_api_key()
     
     # Show configuration
@@ -145,7 +160,6 @@ def query(
     except Exception as e:
         typer.echo(f"\nError: {e}")
         if logger.isEnabledFor(logging.DEBUG):
-            import traceback
             traceback.print_exc()
 
 
@@ -341,16 +355,9 @@ Example files are available in the 'examples' directory.
 
 def main() -> None:
     """Entry point for the CLI application."""
-    # Set up logging
-    log_level = logging.DEBUG if os.environ.get("AGENT_MCP_TOOLS_DEBUG") else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    )
-
     app()
-
 
 if __name__ == "__main__":
     main()
+
 

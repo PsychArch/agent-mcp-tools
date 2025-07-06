@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+      "filesystem": {
+        "command": "uv",
+        "args": [
+          "run",
+          "agent-mcp-tools",
+          "stdio",
+          "--tool-name", "writer",
+          "--tool-description", "Write a technical document and save to a file from the prompt."
+         ]
+      }
+    }
+  }
