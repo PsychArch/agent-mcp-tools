@@ -6,8 +6,11 @@
           "run",
           "agent-mcp-tools",
           "stdio",
+          "--mcp-config", "./examples/writer/writer_mcp.json",
+          "--system-prompt", "./examples/writer/writer.md",
           "--tool-name", "writer",
-          "--tool-description", "Write a technical document and save to a file from the prompt."
+          "--tool-description", "Write a technical document and save to a file from the prompt.",
+          "--verbose"
          ]
       }
     }

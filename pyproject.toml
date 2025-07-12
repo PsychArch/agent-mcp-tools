@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-mcp-tools"
-version = "0.3.0"
+version = "0.3.1"
 description = "Agent MCP Tools - LLM agent framework using Model Context Protocol for multi-agent systems"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -39,7 +39,7 @@ dependencies = [
 "Source Code" = "https://github.com/PsychArch/agent-mcp-tools"
 
 [project.scripts]
-agent-mcp-tools = "agent_mcp_tools.main:main"
+agent-mcp-tools = "agent_mcp_tools.interfaces.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -47,14 +47,6 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.ruff]
-target-version = "py311"
-line-length = 100
-select = ["E", "F", "B", "I", "N", "W", "D", "UP", "TRY", "RUF"]
-ignore = ["D203", "D213"]
 
-[tool.ruff.lint.pydocstyle]
-convention = "google"
 
-[tool.ruff.lint.isort]
-known-first-party = ["agent_mcp_tools"]
+

@@ -1,25 +1,25 @@
 """Command-line interface for Agent MCP Tools.
 
-This module provides a CLI for interacting with LLMs through OpenRouter API
-and MCP tools.
+This module provides a CLI for interacting with LLMs through various providers
+and MCP tools, using the refactored core components.
 """
 
 import asyncio
+import json
 import logging
 import os
 import sys
-from pathlib import Path
-from enum import Enum
-import json
 import traceback
+from enum import Enum
+from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.markdown import Markdown
 
-from .llm_tool import query_llm
-from .config import DEFAULT_MODEL, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE, cli_config
-from .server import mcp, query as query_func
+from ..config import DEFAULT_MAX_TOKENS, DEFAULT_MODEL, DEFAULT_TEMPERATURE
+from ..core.executor import query_llm
+from .mcp_server import create_mcp_server
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class ThemeEnum(str, Enum):
 
 def verify_api_key() -> None:
     """Verify that the OpenRouter API key is set.
-    
+
     Raises:
         SystemExit: If the API key is not set
     """
@@ -48,6 +48,34 @@ def verify_api_key() -> None:
         typer.echo("Error: OPENROUTER_API_KEY environment variable not set")
         typer.echo("Please run: export OPENROUTER_API_KEY=your_key_here")
         sys.exit(1)
+
+
+def _configure_verbose_logging() -> None:
+    """Configure verbose logging for our project only."""
+    # Create custom formatter for better readability
+    formatter = logging.Formatter(
+        fmt='%(message)s'
+    )
+
+    # Set up stderr handler
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(formatter)
+
+    # Only configure loggers for our project modules
+    project_modules = [
+        'agent_mcp_tools.core.executor',
+        'agent_mcp_tools.core.llm.openrouter',
+        'agent_mcp_tools.core.mcp_tool_manager',
+        'agent_mcp_tools.interfaces.mcp_server',
+        'agent_mcp_tools.interfaces.cli'
+    ]
+
+    for module_name in project_modules:
+        module_logger = logging.getLogger(module_name)
+        module_logger.setLevel(logging.DEBUG)
+        module_logger.addHandler(handler)
+        # Prevent propagation to avoid duplicate logs
+        module_logger.propagate = False
 
 
 @app.command()
@@ -103,7 +131,7 @@ def query(
     ),
 ) -> None:
     """Query an LLM with optional MCP tools and custom system prompt.
-    
+
     Args:
         prompt: The prompt text to send to the LLM
         system_prompt: Path to system prompt template file
@@ -112,17 +140,13 @@ def query(
         max_tokens: Maximum tokens to generate
         temperature: Temperature for sampling
         theme: Theme for syntax highlighting
+        verbose: Enable verbose logging
     """
     if verbose:
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            stream=sys.stderr,
-        )
-        logger.info("Verbose mode enabled")
+        _configure_verbose_logging()
 
     verify_api_key()
-    
+
     # Show configuration
     typer.echo(f"Model: {model}")
     if system_prompt:
@@ -212,23 +236,41 @@ def stdio(
         "--tool-description",
         help="Description for the query tool",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output.",
+    ),
 ):
-    """Run the Agent MCP Tools server with stdio transport."""
-    cli_config.system_prompt_file = system_prompt
-    cli_config.mcp_config_file = mcp_config
-    cli_config.model = model
-    cli_config.max_tokens = max_tokens
-    cli_config.temperature = temperature
-    cli_config.tool_name = tool_name
-    cli_config.tool_description = tool_description
+    """Run Agent MCP Tools as an MCP server using stdio transport.
 
-    # Register the tool with the specified name and description
-    mcp.tool(name=cli_config.tool_name, description=cli_config.tool_description)(
-        query_func
+    Args:
+        system_prompt: Path to system prompt template file
+        mcp_config: Path to MCP configuration JSON file
+        model: Model to use
+        max_tokens: Maximum tokens to generate
+        temperature: Temperature for sampling
+        tool_name: Name for the query tool
+        tool_description: Description for the query tool
+        verbose: Enable verbose logging
+    """
+    verify_api_key()
+
+    # Create and configure MCP server
+    server = create_mcp_server(
+        system_prompt_file=system_prompt,
+        mcp_config_file=mcp_config,
+        model=model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        tool_name=tool_name,
+        tool_description=tool_description,
+        verbose=verbose,
     )
 
-    typer.echo("Starting Agent MCP Tools server with stdio transport...")
-    mcp.run(transport="stdio")
+    # Run server with stdio transport
+    server.run()
 
 
 @app.command()
@@ -282,82 +324,122 @@ def http(
         "--tool-description",
         help="Description for the query tool",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose output.",
+    ),
 ):
-    """Run the Agent MCP Tools server with HTTP transport."""
-    cli_config.system_prompt_file = system_prompt
-    cli_config.mcp_config_file = mcp_config
-    cli_config.model = model
-    cli_config.max_tokens = max_tokens
-    cli_config.temperature = temperature
-    cli_config.tool_name = tool_name
-    cli_config.tool_description = tool_description
+    """Run Agent MCP Tools as an HTTP server.
 
-    # Register the tool with the specified name and description
-    mcp.tool(name=cli_config.tool_name, description=cli_config.tool_description)(
-        query_func
+    Args:
+        host: Host to bind the server to
+        port: Port to bind the server to
+        system_prompt: Path to system prompt template file
+        mcp_config: Path to MCP configuration JSON file
+        model: Model to use
+        max_tokens: Maximum tokens to generate
+        temperature: Temperature for sampling
+        tool_name: Name for the query tool
+        tool_description: Description for the query tool
+        verbose: Enable verbose logging
+    """
+    verify_api_key()
+
+    # Create and configure MCP server
+    server = create_mcp_server(
+        system_prompt_file=system_prompt,
+        mcp_config_file=mcp_config,
+        model=model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        tool_name=tool_name,
+        tool_description=tool_description,
+        verbose=verbose,
     )
 
-    typer.echo(f"Starting Agent MCP Tools server with HTTP transport on {host}:{port}...")
-    mcp.run(transport="http", host=host, port=port)
+    typer.echo(f"Starting HTTP server on {host}:{port}")
+
+    # Run server with HTTP transport
+    server.run(transport="httpx", host=host, port=port)
 
 
 @app.command()
 def examples() -> None:
-    """Show example usage and configurations."""
+    """Show usage examples for Agent MCP Tools."""
     examples_text = """
 # Agent MCP Tools Examples
 
-### 1. Basic query (no MCP tools)
+## Basic Query
 ```bash
-agent-mcp-tools query 'What is the capital of France?'
+agent-mcp-tools query "What is the capital of France?"
 ```
 
-### 2. Query with system prompt
+## With System Prompt
 ```bash
-agent-mcp-tools query 'Write a Python function' --system-prompt examples/coder.md
+agent-mcp-tools query "Explain quantum computing" --system-prompt system.txt
 ```
 
-### 3. Query with MCP tools
+## With MCP Tools
 ```bash
-agent-mcp-tools query 'List files in /tmp' --mcp-config examples/mcp.json
+agent-mcp-tools query "Search for recent news about AI" --mcp-config mcp.json
 ```
 
-### 4. Full configuration
+## Custom Model and Parameters
 ```bash
-agent-mcp-tools query 'Analyze this code' \\
-    --system-prompt examples/coder.md \\
-    --mcp-config examples/mcp.json \\
-    --model google/gemini-2.5-pro-preview \\
-    --max-tokens 4096 \\
-    --temperature 0.0
+agent-mcp-tools query "Write a poem" --model "anthropic/claude-3-haiku" --max-tokens 500 --temperature 0.8
 ```
 
-### 5. Using environment variables
+## Run as MCP Server (stdio)
 ```bash
-export OPENROUTER_API_KEY=your_key_here
-agent-mcp-tools query 'Hello, world!'
+agent-mcp-tools stdio --system-prompt system.txt --mcp-config mcp.json
 ```
 
-### 6. Run as an MCP server (stdio)
+## Run as MCP Server with Verbose Logging
 ```bash
-agent-mcp-tools stdio
+agent-mcp-tools stdio --system-prompt system.txt --mcp-config mcp.json --verbose
 ```
 
-### 7. Run as an MCP server (http)
+## Run as HTTP Server
 ```bash
-agent-mcp-tools http --host 0.0.0.0 --port 8080
+agent-mcp-tools http --host 0.0.0.0 --port 8080 --system-prompt system.txt
 ```
 
-Example files are available in the 'examples' directory.
+## Run as HTTP Server with Verbose Logging
+```bash
+agent-mcp-tools http --host 0.0.0.0 --port 8080 --system-prompt system.txt --verbose
+```
+
+## MCP Configuration Format
+Create a `mcp.json` file:
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/files"]
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "your-brave-api-key"
+      }
+    }
+  }
+}
+```
+
+## Environment Variables
+```bash
+export OPENROUTER_API_KEY=your_openrouter_api_key
+```
 """
+
     console.print(Markdown(examples_text))
 
 
 def main() -> None:
-    """Entry point for the CLI application."""
+    """Main entry point for the CLI."""
     app()
-
-if __name__ == "__main__":
-    main()
-
-

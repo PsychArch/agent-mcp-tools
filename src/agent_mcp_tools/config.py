@@ -7,7 +7,6 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +19,13 @@ DEFAULT_TEMPERATURE = 0.0
 @dataclass
 class CliConfig:
     """Holds CLI options."""
-    system_prompt_file: Optional[Path] = None
-    mcp_config_file: Optional[Path] = None
+    system_prompt_file: Path | None = None
+    mcp_config_file: Path | None = None
     model: str = DEFAULT_MODEL
     max_tokens: int = DEFAULT_MAX_TOKENS
     temperature: float = DEFAULT_TEMPERATURE
-    tool_name: Optional[str] = None
-    tool_description: Optional[str] = None
+    tool_name: str | None = None
+    tool_description: str | None = None
 
 # Global instance of the config
 cli_config = CliConfig()
@@ -36,12 +35,13 @@ cli_config = CliConfig()
 class ServerConfig:
     """Configuration for an MCP server."""
     name: str
-    command: Optional[str] = None
-    args: List[str] = None
-    env: Dict[str, str] = None
-    url: Optional[str] = None
+    command: str | None = None
+    args: list[str] = None
+    env: dict[str, str] = None
+    url: str | None = None
 
     def __post_init__(self):
+        """Initialize default values for optional fields."""
         if self.args is None:
             self.args = []
         if self.env is None:
@@ -63,15 +63,15 @@ class ConfigurationError(Exception):
     pass
 
 
-def load_mcp_config(config_path: Path) -> Dict[str, ServerConfig]:
+def load_mcp_config(config_path: Path) -> dict[str, ServerConfig]:
     """Load MCP server configurations from JSON file.
-    
+
     Args:
         config_path: Path to the MCP configuration JSON file
-        
+
     Returns:
         Dictionary mapping server names to ServerConfig objects
-        
+
     Raises:
         ConfigurationError: If the configuration file is invalid
     """
@@ -79,7 +79,7 @@ def load_mcp_config(config_path: Path) -> Dict[str, ServerConfig]:
         with open(config_path, encoding="utf-8") as f:
             logger.info(f"Loading MCP configuration from {config_path}")
             data = json.load(f)
-            
+
         servers = {}
         for name, config in data.get("mcpServers", {}).items():
             servers[name] = ServerConfig(
@@ -90,10 +90,10 @@ def load_mcp_config(config_path: Path) -> Dict[str, ServerConfig]:
                 url=config.get("url")
             )
         return servers
-        
-    except FileNotFoundError:
-        raise ConfigurationError(f"MCP configuration file not found: {config_path}")
+
+    except FileNotFoundError as e:
+        raise ConfigurationError(f"MCP configuration file not found: {config_path}") from e
     except json.JSONDecodeError as e:
-        raise ConfigurationError(f"Invalid JSON in MCP configuration file: {e}")
+        raise ConfigurationError(f"Invalid JSON in MCP configuration file: {e}") from e
     except Exception as e:
-        raise ConfigurationError(f"Error loading MCP configuration: {e}") 
+        raise ConfigurationError(f"Error loading MCP configuration: {e}") from e

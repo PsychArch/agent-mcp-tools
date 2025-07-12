@@ -5,5 +5,5 @@ set -e
 # It uses the director agent to ask the writer agent to create three documents.
 
 PROMPT=$(cat examples/writer/director.md)
-
-uv run agent-mcp-tools query "$PROMPT" --mcp-config examples/writer/director_mcp.json 
+mkdir -p /tmp/writer_workspace
+uv run agent-mcp-tools query "$PROMPT" --mcp-config examples/writer/director_mcp.json --verbose
