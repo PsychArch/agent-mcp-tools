@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-mcp-tools"
-version = "0.3.1"
+version = "0.4.0"
 description = "Agent MCP Tools - LLM agent framework using Model Context Protocol for multi-agent systems"
 readme = "README.md"
 requires-python = ">=3.11"
