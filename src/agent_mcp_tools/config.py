@@ -11,7 +11,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Constants
-DEFAULT_MODEL = "google/gemini-2.5-flash"
+DEFAULT_MODEL = "google/gemini-2.5-pro"
 DEFAULT_MAX_TOKENS = 16384
 DEFAULT_TEMPERATURE = 0.0
 

@@ -7,6 +7,7 @@ LLM conversations with MCP tool calling support.
 import json
 import logging
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -17,8 +18,46 @@ from .mcp_tool_manager import MCPToolManager, ToolConverter
 
 logger = logging.getLogger(__name__)
 
-# In-memory store for conversations
-_conversations: dict[str, list[dict[str, Any]]] = {}
+
+class LRUConversationCache:
+    """LRU cache for storing conversations with automatic eviction."""
+    
+    def __init__(self, max_size: int = 100):
+        self.max_size = max_size
+        self._cache: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+    
+    def get(self, conversation_id: str) -> list[dict[str, Any]] | None:
+        """Get conversation messages, moving to end if found."""
+        if conversation_id in self._cache:
+            # Move to end (most recently used)
+            self._cache.move_to_end(conversation_id)
+            return self._cache[conversation_id]
+        return None
+    
+    def put(self, conversation_id: str, messages: list[dict[str, Any]]) -> None:
+        """Store conversation messages, evicting oldest if needed."""
+        if conversation_id in self._cache:
+            # Update existing and move to end
+            self._cache[conversation_id] = messages
+            self._cache.move_to_end(conversation_id)
+        else:
+            # Add new conversation
+            self._cache[conversation_id] = messages
+            # Evict oldest if over capacity
+            if len(self._cache) > self.max_size:
+                self._cache.popitem(last=False)  # Remove oldest (FIFO)
+    
+    def remove(self, conversation_id: str) -> list[dict[str, Any]] | None:
+        """Remove and return conversation if it exists."""
+        return self._cache.pop(conversation_id, None)
+    
+    def size(self) -> int:
+        """Return current cache size."""
+        return len(self._cache)
+
+
+# Global LRU cache for conversations
+_conversations_cache = LRUConversationCache()
 
 
 def _truncate_content(content: str, max_length: int = 150) -> str:
@@ -40,38 +79,43 @@ class AgentExecutor:
         self,
         prompt: str,
         system_prompt_template: str,
-        conversation_id: str,
-        close: bool = False,
+        conversation_id: str | None = None,
         model: str = DEFAULT_MODEL,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         temperature: float = DEFAULT_TEMPERATURE,
-    ) -> str:
+    ) -> tuple[str, str]:
         """Execute an agent request.
 
         Args:
             prompt: User prompt
             system_prompt_template: System prompt template (can contain {prompt} placeholder)
-            conversation_id: Unique conversation identifier
-            close: Whether to close the conversation after execution
+            conversation_id: Unique conversation identifier (auto-generated if None)
             model: Model to use for generation
             max_tokens: Maximum tokens to generate
             temperature: Temperature for sampling
 
         Returns:
-            Final response from the agent
+            Tuple of (final response from the agent, conversation_id used)
         """
+        # Auto-generate conversation ID if not provided
+        if conversation_id is None:
+            conversation_id = str(uuid.uuid4())
+            logger.info(f"🆔 [{self.agent_tool_name}] Generated conversation ID: {conversation_id}")
+        
         logger.info(f"🚀 [{self.agent_tool_name}] {model} | User: {_truncate_content(prompt)}")
         
-        messages = _conversations.get(conversation_id)
+        messages = _conversations_cache.get(conversation_id)
 
         if not messages:
             # New conversation
             formatted_prompt = system_prompt_template.format(prompt=prompt)
             messages = [{"role": "user", "content": formatted_prompt}]
-            _conversations[conversation_id] = messages
+            _conversations_cache.put(conversation_id, messages)
         else:
             # Existing conversation
             messages.append({"role": "user", "content": prompt})
+            # Update cache with modified messages
+            _conversations_cache.put(conversation_id, messages)
 
         # Get available tools
         mcp_tools = await self.mcp_manager.list_tools()
@@ -112,15 +156,17 @@ class AgentExecutor:
             # Handle tool calls
             if tool_calls and openai_tools:
                 if await self._process_tool_calls(tool_calls, messages):
+                    # Update cache with messages including tool results
+                    _conversations_cache.put(conversation_id, messages)
                     continue  # Continue conversation loop
 
             # No tool calls or all processed, return final content
             final_content = message.get("content", "No content returned")
             
-            if close:
-                _conversations.pop(conversation_id, None)
+            # Update cache with final messages
+            _conversations_cache.put(conversation_id, messages)
 
-            return final_content
+            return final_content, conversation_id
 
     async def _process_tool_calls(
         self,
@@ -180,7 +226,6 @@ async def query_llm(
     system_prompt_file: Path | None = None,
     mcp_config_file: Path | None = None,
     conversation_id: str | None = None,
-    close_conversation: bool = False,
     model: str = DEFAULT_MODEL,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     temperature: float = DEFAULT_TEMPERATURE,
@@ -196,7 +241,6 @@ async def query_llm(
         system_prompt_file: Optional path to system prompt template file
         mcp_config_file: Optional path to MCP configuration file
         conversation_id: Optional conversation ID for multi-turn conversations
-        close_conversation: Whether to close the conversation after this query
         model: Model to use for generation
         max_tokens: Maximum tokens to generate
         temperature: Temperature for sampling
@@ -222,14 +266,14 @@ async def query_llm(
     # Create executor and run
     executor = AgentExecutor(mcp_manager=mcp_manager, agent_tool_name=agent_tool_name)
     try:
-        return await executor.execute(
+        response, _ = await executor.execute(
             prompt=prompt,
             system_prompt_template=system_prompt_template,
             conversation_id=conversation_id,
-            close=close_conversation,
             model=model,
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        return response
     finally:
         await executor.cleanup()

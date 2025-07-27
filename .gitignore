@@ -140,3 +140,6 @@ dmypy.json
 
 # Project specific
 mcp.json
+CLAUDE.md
+CLAUDE.local.md
+uv.lock
