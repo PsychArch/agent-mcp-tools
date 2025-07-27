@@ -270,7 +270,7 @@ def stdio(
     )
 
     # Run server with stdio transport
-    server.run()
+    server.run(show_banner=False)
 
 
 @app.command()
@@ -362,7 +362,7 @@ def http(
     typer.echo(f"Starting HTTP server on {host}:{port}")
 
     # Run server with HTTP transport
-    server.run(transport="httpx", host=host, port=port)
+    server.run(transport="httpx", host=host, port=port, show_banner=False)
 
 
 @app.command()

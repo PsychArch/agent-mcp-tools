@@ -23,7 +23,6 @@ mcp = FastMCP(name="Agent MCP Tools Server")
 async def query(
     prompt: str,
     conversation_id: str | None = None,
-    close_conversation: bool = False,
 ) -> str:
     """Query an LLM with a prompt and optional settings.
 
@@ -33,22 +32,42 @@ async def query(
     Args:
         prompt: The user's prompt to the LLM.
         conversation_id: ID of an ongoing conversation.
-        close_conversation: If true, closes the conversation.
 
     Returns:
-        The LLM's response to the prompt.
+        The LLM's response to the prompt, with conversation_id included if auto-generated.
     """
-    return await query_llm(
-        prompt=prompt,
-        system_prompt_file=cli_config.system_prompt_file,
-        mcp_config_file=cli_config.mcp_config_file,
-        conversation_id=conversation_id,
-        close_conversation=close_conversation,
-        model=cli_config.model,
-        max_tokens=cli_config.max_tokens,
-        temperature=cli_config.temperature,
-        agent_tool_name=cli_config.tool_name,
-    )
+    # Import here to access updated executor
+    from ..core.executor import AgentExecutor, MCPToolManager
+    
+    # Create executor with same settings as query_llm but get conversation_id back
+    mcp_manager = MCPToolManager(agent_tool_name=cli_config.tool_name)
+    if cli_config.mcp_config_file and cli_config.mcp_config_file.exists():
+        await mcp_manager.load_from_file(cli_config.mcp_config_file)
+    
+    # Load system prompt template
+    system_prompt_template = "{prompt}"  # Default template
+    if cli_config.system_prompt_file and cli_config.system_prompt_file.exists():
+        system_prompt_template = cli_config.system_prompt_file.read_text(encoding="utf-8")
+    
+    executor = AgentExecutor(mcp_manager=mcp_manager, agent_tool_name=cli_config.tool_name)
+    try:
+        response, used_conversation_id = await executor.execute(
+            prompt=prompt,
+            system_prompt_template=system_prompt_template,
+            conversation_id=conversation_id,
+            model=cli_config.model,
+            max_tokens=cli_config.max_tokens,
+            temperature=cli_config.temperature,
+        )
+        
+        # If conversation_id was auto-generated, include it in the response
+        if conversation_id is None:
+            return f"{response}\n\n[Conversation ID: {used_conversation_id}]"
+        else:
+            return response
+            
+    finally:
+        await executor.cleanup()
 
 
 def _configure_verbose_logging() -> None:
