@@ -5,13 +5,14 @@ This module handles loading MCP server configurations.
 
 import json
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # Constants
-DEFAULT_MODEL = "google/gemini-2.5-pro"
+DEFAULT_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 DEFAULT_MAX_TOKENS = 16384
 DEFAULT_TEMPERATURE = 0.0
 

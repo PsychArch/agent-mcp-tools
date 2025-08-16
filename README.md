@@ -15,10 +15,12 @@ pipx install agent-mcp-tools
 
 ### 2. Configuration
 
-Set your OpenRouter API key. Get one from the [OpenRouter website](https://openrouter.ai/keys).
+Set your OpenAI API key. You can use OpenAI directly or any OpenAI-compatible service.
 
 ```bash
-export OPENROUTER_API_KEY="your_openrouter_api_key"
+export OPENAI_API_KEY="your_openai_api_key"
+export OPENAI_BASE_URL="https://api.openai.com/v1"  # Optional, defaults to OpenAI
+export OPENAI_MODEL="gpt-4o"  # Optional, defaults to gpt-4o
 ```
 
 ### 3. Command-Line Usage

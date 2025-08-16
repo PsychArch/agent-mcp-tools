@@ -39,14 +39,14 @@ class ThemeEnum(str, Enum):
 
 
 def verify_api_key() -> None:
-    """Verify that the OpenRouter API key is set.
+    """Verify that the OpenAI API key is set.
 
     Raises:
         SystemExit: If the API key is not set
     """
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        typer.echo("Error: OPENROUTER_API_KEY environment variable not set")
-        typer.echo("Please run: export OPENROUTER_API_KEY=your_key_here")
+    if not os.environ.get("OPENAI_API_KEY"):
+        typer.echo("Error: OPENAI_API_KEY environment variable not set")
+        typer.echo("Please run: export OPENAI_API_KEY=your_key_here")
         sys.exit(1)
 
 
@@ -411,6 +411,20 @@ agent-mcp-tools http --host 0.0.0.0 --port 8080 --system-prompt system.txt
 agent-mcp-tools http --host 0.0.0.0 --port 8080 --system-prompt system.txt --verbose
 ```
 
+## Example Agents
+
+### Writer Agent
+Creates comprehensive technical documentation:
+```bash
+agent-mcp-tools query "Write a guide to TypeScript generics" --system-prompt examples/writer/writer.md --mcp-config examples/writer/writer_mcp.json
+```
+
+### Cheatsheet Agent
+Generates quick reference guides from online documentation:
+```bash
+agent-mcp-tools query "Create a Docker commands cheatsheet" --system-prompt examples/cheatsheet/cheatsheet.md --mcp-config examples/cheatsheet/cheatsheet_mcp.json
+```
+
 ## MCP Configuration Format
 Create a `mcp.json` file:
 ```json
@@ -433,7 +447,9 @@ Create a `mcp.json` file:
 
 ## Environment Variables
 ```bash
-export OPENROUTER_API_KEY=your_openrouter_api_key
+export OPENAI_API_KEY=your_openai_api_key
+export OPENAI_BASE_URL=https://api.openai.com/v1  # Optional, defaults to OpenAI
+export OPENAI_MODEL=gpt-4o  # Optional, defaults to gpt-4o
 ```
 """
 
