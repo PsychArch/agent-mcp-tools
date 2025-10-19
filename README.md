@@ -1,5 +1,13 @@
 # Agent MCP Tools
 
+> **⚠️ ARCHIVED - No Longer Maintained**
+>
+> This project has been archived as of October 19, 2025. With the rapid growth of well-designed agent frameworks in the ecosystem, this project is no longer actively maintained.
+>
+> This repository is now read-only and will not receive updates or support.
+
+---
+
 [![PyPI version](https://badge.fury.io/py/agent-mcp-tools.svg)](https://badge.fury.io/py/agent-mcp-tools)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
